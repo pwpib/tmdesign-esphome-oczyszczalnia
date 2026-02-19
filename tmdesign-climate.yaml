@@ -1,0 +1,84 @@
+esphome:
+  name: tmdesign-climate
+  friendly_name: TMDesign Climate
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# ======================
+# Logowanie i integracje
+# ======================
+
+logger:
+
+api:
+  encryption:
+    key: "OQTDkNF8FWCjHTcfedCNRtG44Emg13RZERLjLPSzE5w="
+
+ota:
+  - platform: esphome
+    password: "3d3314e9a83d73814bb1c7f53acc0057"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "Tmdesign-Climate"
+    password: "a1YrifE3v9Yh"
+
+captive_portal:
+
+# ======================
+# Magistrale
+# ======================
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+
+dallas:
+  - pin: GPIO4
+    update_interval: 30s
+
+# ======================
+# Czujniki
+# ======================
+
+sensor:
+
+  # ---- Temperatura zewnętrzna (DS18B20) ----
+  - platform: dallas
+    address: 0xXXXXXXXXXXXXXX   # ← wstaw adres z logów
+    name: "tmd_temperatura_zewnetrzna"
+    device_class: temperature
+    state_class: measurement
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+
+  # ---- BME280 (wewnątrz pomieszczeń) ----
+  - platform: bme280
+    address: 0x76
+    update_interval: 30s
+
+    temperature:
+      name: "tmd_temperatura_wewnetrzna"
+      device_class: temperature
+      state_class: measurement
+      accuracy_decimals: 1
+
+    humidity:
+      name: "tmd_wilgotnosc_wewnetrzna"
+      device_class: humidity
+      state_class: measurement
+      accuracy_decimals: 1
+
+    pressure:
+      name: "tmd_cisnienie_atmosferyczne"
+      device_class: pressure
+      state_class: measurement
+      unit_of_measurement: "hPa"
+      accuracy_decimals: 1

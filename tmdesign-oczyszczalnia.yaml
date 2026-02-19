@@ -1,0 +1,459 @@
+esphome:
+  name: tmdesign-oczyszczalnia
+  friendly_name: tmdesign-oczyszczalnia
+
+  on_boot:
+    priority: 600
+    then:
+      - lambda: |-
+          id(tmd_master).publish_state(true);
+
+          id(tmd_state) = 0;
+          id(tmd_timer) = 0;
+
+          id(tmd_r1).turn_on();
+          id(tmd_r2).turn_on();
+          id(tmd_r3).turn_off();
+          id(tmd_r4).turn_off();
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "vHWeerdBbs3q//7/sdh6ONgtY3GnfwtvZHNFmRmKnE8="
+
+ota:
+  - platform: esphome
+    password: "239861be69696946abeaa0a3e408cc3d"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Tmdesign-Oczyszczalnia"
+    password: "z4pKp7hm4wAm"
+
+i2c:
+  sda: GPIO8
+  scl: GPIO9
+  scan: true
+
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 16
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 1s
+
+    lambda: |-
+      if (id(tmd_screen_timer) <= 0) {
+        return;
+      }
+
+      it.printf(0, 0, id(font_medium), "TMDesign");
+
+      it.printf(0, 20, id(font_small), "Stan: %s", id(tmd_aktualny_stan).state.c_str());
+
+      it.printf(0, 35, id(font_small), "Czas: %.1f min", id(tmd_czas_w_stanie).state);
+
+      if (id(tmd_safe_mode)) {
+        it.printf(0, 50, id(font_small), "SAFE: AKTYWNY");
+      } else {
+        it.printf(0, 50, id(font_small), "SAFE: OK");
+      }
+
+switch:
+  - platform: gpio
+    pin: 4
+    name: "TMD R1 Sprężarka"
+    id: tmd_r1
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: 5
+    name: "TMD R2 Napowietrzanie"
+    id: tmd_r2
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: 6
+    name: "TMD R3 Mamut1"
+    id: tmd_r3
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: 7
+    name: "TMD R4 Mamut2"
+    id: tmd_r4
+    restore_mode: ALWAYS_OFF
+
+  - platform: template
+    name: "TMD MASTER ENABLE"
+    id: tmd_master
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO10
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "TMD Przycisk Panel"
+    id: tmd_panel_button
+    on_press:
+      then:
+        - lambda: |-
+
+            // 1️⃣ Jeśli ekran wygaszony → tylko go włącz
+            if (id(tmd_screen_timer) <= 0) {
+              id(tmd_screen_timer) = 60;
+              return;
+            }
+
+            // 2️⃣ Jeśli SAFE aktywny → reset alarmu
+            if (id(tmd_safe_mode)) {
+
+              id(tmd_alarm_latched) = false;
+              id(tmd_safe_mode) = false;
+              id(tmd_alarm_active_code) = 0;
+              id(tmd_alarm_active_timestamp) = 0;
+              id(tmd_alarm_count) = 0;
+
+              id(tmd_state) = 0;
+              id(tmd_timer) = 0;
+
+              id(tmd_screen_timer) = 60;
+              return;
+            }
+
+            // 3️⃣ Jeśli brak SAFE → przełącz MASTER
+            bool master = id(tmd_master).state;
+            id(tmd_master).publish_state(!master);
+
+            id(tmd_screen_timer) = 60;
+
+globals:
+  - id: tmd_state
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_timer
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_alarm_active_code
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_alarm_active_timestamp
+    type: uint32_t
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_alarm_latched
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: tmd_safe_mode
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: tmd_alarm_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_no_aeration_counter
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+  - id: tmd_m1_hard_limit
+    type: int
+    restore_value: no
+    initial_value: '600'
+
+  - id: tmd_m2_hard_limit
+    type: int
+    restore_value: no
+    initial_value: '300'
+
+  - id: tmd_screen_timer
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+number:
+  - platform: template
+    name: "TMD Czas Aeracja"
+    id: tmd_time_aeracja
+    optimistic: true
+    min_value: 30
+    max_value: 180
+    step: 1
+    initial_value: 45
+
+  - platform: template
+    name: "TMD Czas Pauza"
+    id: tmd_time_pauza
+    optimistic: true
+    min_value: 2
+    max_value: 10
+    step: 0.1
+    initial_value: 5
+
+  - platform: template
+    name: "TMD Czas Mamut1"
+    id: tmd_time_m1
+    optimistic: true
+    min_value: 2
+    max_value: 15
+    step: 0.1
+    initial_value: 10
+
+  - platform: template
+    name: "TMD Czas Aeracja Stabilizacja"
+    id: tmd_time_aer2
+    optimistic: true
+    min_value: 2
+    max_value: 10
+    step: 0.1
+    initial_value: 5
+
+  - platform: template
+    name: "TMD Czas Mamut2"
+    id: tmd_time_m2
+    optimistic: true
+    min_value: 1
+    max_value: 5
+    step: 0.1
+    initial_value: 3
+
+text_sensor:
+  - platform: template
+    id: tmd_aktualny_stan
+    name: "TMD Aktualny Stan"
+    lambda: |-
+      switch(id(tmd_state)) {
+        case 0: return {"AERACJA"};
+        case 1: return {"OSAD"};
+        case 2: return {"MAMUT1"};
+        case 3: return {"AERACJA OSAD"};
+        case 4: return {"AERACJA + MAMUT2"};
+        default: return {"NIEZNANY"};
+      }
+    update_interval: 2s
+
+sensor:
+  - platform: template
+    id: tmd_czas_w_stanie
+    name: "TMD Czas w stanie [min]"
+    unit_of_measurement: "min"
+    accuracy_decimals: 2
+    lambda: |-
+      return id(tmd_timer) / 60.0;
+    update_interval: 2s
+
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (id(tmd_screen_timer) > 0) {
+            id(tmd_screen_timer)--;
+          }          
+                    
+          // PRIORYTET 0 – SAFE MODE
+          if (id(tmd_safe_mode)) {
+
+            id(tmd_r1).turn_on();   // sprężarka
+            id(tmd_r2).turn_on();   // napowietrzanie
+            id(tmd_r3).turn_off();  // M1
+            id(tmd_r4).turn_off();  // M2
+
+            return;
+          }
+
+          if (!id(tmd_master).state) {
+
+            id(tmd_r1).turn_off();
+            id(tmd_r2).turn_off();
+            id(tmd_r3).turn_off();
+            id(tmd_r4).turn_off();
+            return;
+
+          }
+
+          id(tmd_timer)++;
+
+          // WATCHDOG BRAKU AERACJI
+          if (id(tmd_r1).state && id(tmd_r2).state) {
+            id(tmd_no_aeration_counter) = 0;
+          } else {
+            id(tmd_no_aeration_counter)++;
+          }
+
+          if (id(tmd_no_aeration_counter) >= 5400) {
+            id(trigger_alarm).execute();
+          }
+
+          // HARD LIMIT MAMUT1
+          if (id(tmd_state) == 2) {
+            if (id(tmd_timer) >= id(tmd_m1_hard_limit)) {
+              id(trigger_alarm).execute();
+            }
+          }
+
+          // HARD LIMIT MAMUT2
+          if (id(tmd_state) == 4) {
+            if (id(tmd_timer) >= id(tmd_m2_hard_limit)) {
+              id(trigger_alarm).execute();
+            }
+          }
+
+          int next_state = id(tmd_state);
+
+          switch(id(tmd_state)) {
+
+            case 0:
+              if (id(tmd_timer) >= id(tmd_time_aeracja).state * 60) {
+                next_state = 1;
+              }
+              break;
+
+            case 1:
+              if (id(tmd_timer) >= id(tmd_time_pauza).state * 60) {
+                next_state = 2;
+              }
+              break;
+
+            case 2:
+              if (id(tmd_timer) >= id(tmd_time_m1).state * 60) {
+                next_state = 3;
+              }
+              break;
+
+            case 3:
+              if (id(tmd_timer) >= id(tmd_time_aer2).state * 60) {
+                next_state = 4;
+              }
+              break;
+
+            case 4:
+              if (id(tmd_timer) >= id(tmd_time_m2).state * 60) {
+                next_state = 0;
+              }
+              break;
+          }
+
+          // Zmiana stanu tylko gdy potrzeba
+          if (next_state != id(tmd_state)) {
+
+            id(tmd_state) = next_state;
+            id(tmd_timer) = 0;
+
+            switch(id(tmd_state)) {
+
+              case 0:  // AERACJA
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 1:  // PAUZA
+                id(tmd_r1).turn_off();
+                id(tmd_r2).turn_off();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 2:  // MAMUT1
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_off();
+                id(tmd_r3).turn_on();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 3:  // AERACJA STABILIZACJA
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 4:  // AERACJA + MAMUT2
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_on();
+                break;
+            }
+          }
+          
+captive_portal:
+
+script:
+  - id: trigger_alarm
+    then:
+      - lambda: |-
+          id(tmd_alarm_count)++;
+
+          if (!id(tmd_alarm_latched)) {
+
+            id(tmd_alarm_active_code) = 999;
+            id(tmd_alarm_active_timestamp) = millis() / 1000;
+
+            id(tmd_alarm_latched) = true;
+            id(tmd_safe_mode) = true;
+
+            ESP_LOGE("TMD", "ALARM TEST 999 – SYSTEM ZABLOKOWANY");
+          }
+
+button:
+  - platform: template
+    id: tmd_test_alarm_btn
+    name: "TMD TEST ALARM"
+    on_press:
+      then:
+        - script.execute:
+            id: trigger_alarm
+
+  - platform: template
+    id: tmd_reset_alarm_btn
+    name: "TMD RESET ALARM"
+    on_press:
+      then:
+        - lambda: |-
+            id(tmd_alarm_latched) = false;
+            id(tmd_safe_mode) = false;
+            id(tmd_alarm_active_code) = 0;
+            id(tmd_alarm_active_timestamp) = 0;
+            id(tmd_alarm_count) = 0;
+
+        - lambda: |-
+            id(tmd_state) = 0;
+            id(tmd_timer) = 0;

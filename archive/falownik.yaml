@@ -1,0 +1,28 @@
+esphome:
+  name: falownik
+  friendly_name: Falownik
+
+rp2040:
+  board: rpipicow
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "bbgMW3had6jr/gttULK7CH0XEYXZc74ETshfg3efdBw="
+
+ota:
+  - platform: esphome
+    password: "68f28d039898204d5d3d7d7a03b34830"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "Falownik Fallback Hotspot"
+    password: "xkEeAaB89mAS"
+    

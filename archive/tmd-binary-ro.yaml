@@ -1,0 +1,15 @@
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: tmd_hp
+    name: "TMD HP Compressor Running"
+    unique_id: tmd_hp_compressor
+    address: 200
+    register_type: holding
+    bitmask: 0x0001
+
+  - platform: modbus_controller
+    name: "TMD HP Defrost Active"
+    unique_id: tmd_hp_defrost
+    address: 200
+    register_type: holding
+    bitmask: 0x0002

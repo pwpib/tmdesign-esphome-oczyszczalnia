@@ -1,0 +1,32 @@
+esphome:
+  name: tmdesign-oczyszczalnia
+  friendly_name: tmdesign-oczyszczalnia
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "MezmkHky16knbiqaMUNXxa7yjjEPe2Io7i0dlWd0ROw="
+
+ota:
+  - platform: esphome
+    password: "50a2b0a6646fc1ee1aa5e45ebc9ceb5c"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Tmdesign-Oczyszczalnia"
+    password: "JjYvCZaRQKRN"
+
+captive_portal:
+    
