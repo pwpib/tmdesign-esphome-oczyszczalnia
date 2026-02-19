@@ -1,0 +1,31 @@
+font:
+  - file: "gfonts://Roboto"
+    id: font_small
+    size: 12
+
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 16
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    address: 0x3C
+    update_interval: 1s
+
+    lambda: |-
+      if (id(tmd_screen_timer) <= 0) {
+        return;
+      }
+
+      it.printf(0, 0, id(font_medium), "TMDesign");
+
+      it.printf(0, 20, id(font_small), "Stan: %s", id(tmd_aktualny_stan).state.c_str());
+
+      it.printf(0, 35, id(font_small), "Czas: %.1f min", id(tmd_czas_w_stanie).state);
+
+      if (id(tmd_safe_mode)) {
+        it.printf(0, 50, id(font_small), "SAFE: AKTYWNY");
+      } else {
+        it.printf(0, 50, id(font_small), "SAFE: OK");
+      }

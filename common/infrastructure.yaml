@@ -1,0 +1,20 @@
+# Enable logging
+logger:
+
+api:
+  encryption:
+    key: "vHWeerdBbs3q//7/sdh6ONgtY3GnfwtvZHNFmRmKnE8="
+# Enable Home Assistant API
+ota:
+  - platform: esphome
+    password: "239861be69696946abeaa0a3e408cc3d"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Tmdesign-Oczyszczalnia"
+    password: "z4pKp7hm4wAm"
+
+captive_portal:

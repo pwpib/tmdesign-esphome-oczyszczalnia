@@ -1,0 +1,208 @@
+globals:
+  - id: tmd_state
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_timer
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_alarm_active_code
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_alarm_active_timestamp
+    type: uint32_t
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_alarm_latched
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: tmd_safe_mode
+    type: bool
+    restore_value: no
+    initial_value: "false"
+
+  - id: tmd_alarm_count
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_no_aeration_counter
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+  - id: tmd_m1_hard_limit
+    type: int
+    restore_value: no
+    initial_value: "600"
+
+  - id: tmd_m2_hard_limit
+    type: int
+    restore_value: no
+    initial_value: "300"
+
+  - id: tmd_screen_timer
+    type: int
+    restore_value: no
+    initial_value: "0"
+
+script:
+  - id: trigger_alarm
+    then:
+      - lambda: |-
+          id(tmd_alarm_count)++;
+
+          if (!id(tmd_alarm_latched)) {
+
+            id(tmd_alarm_active_code) = 999;
+            id(tmd_alarm_active_timestamp) = millis() / 1000;
+
+            id(tmd_alarm_latched) = true;
+            id(tmd_safe_mode) = true;
+
+            ESP_LOGE("TMD", "ALARM TEST 999 – SYSTEM ZABLOKOWANY");
+          }
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          if (id(tmd_screen_timer) > 0) {
+            id(tmd_screen_timer)--;
+          }          
+                    
+          // PRIORYTET 0 – SAFE MODE
+          if (id(tmd_safe_mode)) {
+
+            id(tmd_r1).turn_on();   // sprężarka
+            id(tmd_r2).turn_on();   // napowietrzanie
+            id(tmd_r3).turn_off();  // M1
+            id(tmd_r4).turn_off();  // M2
+
+            return;
+          }
+
+          if (!id(tmd_master).state) {
+
+            id(tmd_r1).turn_off();
+            id(tmd_r2).turn_off();
+            id(tmd_r3).turn_off();
+            id(tmd_r4).turn_off();
+            return;
+
+          }
+
+          id(tmd_timer)++;
+
+          // WATCHDOG BRAKU AERACJI
+          if (id(tmd_r1).state && id(tmd_r2).state) {
+            id(tmd_no_aeration_counter) = 0;
+          } else {
+            id(tmd_no_aeration_counter)++;
+          }
+
+          if (id(tmd_no_aeration_counter) >= 5400) {
+            id(trigger_alarm).execute();
+          }
+
+          // HARD LIMIT MAMUT1
+          if (id(tmd_state) == 2) {
+            if (id(tmd_timer) >= id(tmd_m1_hard_limit)) {
+              id(trigger_alarm).execute();
+            }
+          }
+
+          // HARD LIMIT MAMUT2
+          if (id(tmd_state) == 4) {
+            if (id(tmd_timer) >= id(tmd_m2_hard_limit)) {
+              id(trigger_alarm).execute();
+            }
+          }
+
+          int next_state = id(tmd_state);
+
+          switch(id(tmd_state)) {
+
+            case 0:
+              if (id(tmd_timer) >= id(tmd_time_aeracja).state * 60) {
+                next_state = 1;
+              }
+              break;
+
+            case 1:
+              if (id(tmd_timer) >= id(tmd_time_pauza).state * 60) {
+                next_state = 2;
+              }
+              break;
+
+            case 2:
+              if (id(tmd_timer) >= id(tmd_time_m1).state * 60) {
+                next_state = 3;
+              }
+              break;
+
+            case 3:
+              if (id(tmd_timer) >= id(tmd_time_aer2).state * 60) {
+                next_state = 4;
+              }
+              break;
+
+            case 4:
+              if (id(tmd_timer) >= id(tmd_time_m2).state * 60) {
+                next_state = 0;
+              }
+              break;
+          }
+
+          // Zmiana stanu tylko gdy potrzeba
+          if (next_state != id(tmd_state)) {
+
+            id(tmd_state) = next_state;
+            id(tmd_timer) = 0;
+
+            switch(id(tmd_state)) {
+
+              case 0:  // AERACJA
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 1:  // PAUZA
+                id(tmd_r1).turn_off();
+                id(tmd_r2).turn_off();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 2:  // MAMUT1
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_off();
+                id(tmd_r3).turn_on();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 3:  // AERACJA STABILIZACJA
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_off();
+                break;
+
+              case 4:  // AERACJA + MAMUT2
+                id(tmd_r1).turn_on();
+                id(tmd_r2).turn_on();
+                id(tmd_r3).turn_off();
+                id(tmd_r4).turn_on();
+                break;
+            }
+          }
