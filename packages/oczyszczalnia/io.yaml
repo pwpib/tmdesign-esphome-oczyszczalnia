@@ -1,24 +1,24 @@
 switch:
   - platform: gpio
-    pin: 4
+    pin: GPIO4
     name: "TMD R1 Sprężarka"
     id: tmd_r1
     restore_mode: ALWAYS_OFF
 
   - platform: gpio
-    pin: 5
+    pin: GPIO5
     name: "TMD R2 Napowietrzanie"
     id: tmd_r2
     restore_mode: ALWAYS_OFF
 
   - platform: gpio
-    pin: 6
+    pin: GPIO6
     name: "TMD R3 Mamut1"
     id: tmd_r3
     restore_mode: ALWAYS_OFF
 
   - platform: gpio
-    pin: 7
+    pin: GPIO7
     name: "TMD R4 Mamut2"
     id: tmd_r4
     restore_mode: ALWAYS_OFF
@@ -28,6 +28,17 @@ switch:
     id: tmd_master
     optimistic: true
     restore_mode: RESTORE_DEFAULT_ON
+    on_turn_on:
+      - lambda: |-
+          ESP_LOGI("TMD", "MASTER ON – restart cyklu");
+          id(tmd_state) = 0;
+          id(tmd_timer) = 0;
+          id(tmd_force_refresh) = true;
+
+    on_turn_off:
+      - lambda: |-
+          ESP_LOGI("TMD", "MASTER OFF – zatrzymanie systemu");
+          id(tmd_timer) = 0;
 
 binary_sensor:
   - platform: gpio
@@ -35,8 +46,14 @@ binary_sensor:
       number: GPIO10
       mode: INPUT_PULLUP
       inverted: true
+
     name: "TMD Przycisk Panel"
     id: tmd_panel_button
+
+    filters:
+      - delayed_on: 20ms
+      - delayed_off: 20ms
+
     on_press:
       then:
         - lambda: |-
